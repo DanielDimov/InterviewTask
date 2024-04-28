@@ -13,6 +13,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.pattern.PathPattern;
@@ -32,13 +33,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     public static final String TOKEN_PREFIX = "Bearer ";
 
     private final UserService userService;
-    private final UserDetailsService userDetailsService;
     private final List<PathPattern> openURLs;
     private final PathPattern apiPattern;
 
-    public JwtAuthenticationFilter(UserService userService, UserDetailsService userDetailsService) {
+    public JwtAuthenticationFilter(UserService userService) {
         this.userService = userService;
-        this.userDetailsService = userDetailsService;
         openURLs = stream(OPEN_URLS)
                 .map(PathPatternParser.defaultInstance::parse)
                 .toList();
@@ -79,13 +78,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
 
-            var user = userDetailsService.loadUserByUsername(username);
-            if (!user.isEnabled() || !user.isAccountNonLocked()) {
-                // valid user, but the user is inactive
-                response.sendError(401);
-                return;
-            }
-
             if (decodedJWT.getExpiresAt().before(new Date())) {
                 // expired token
                 response.sendError(401);
@@ -99,10 +91,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
 
             var roles = stream(permissions)
-                    .filter(p -> p.startsWith("ROLE_"))
                     .map(SimpleGrantedAuthority::new)
                     .toList();
             var authenticationToken = new UsernamePasswordAuthenticationToken(username, null, roles);
+            authenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
             SecurityContextHolder.getContext().setAuthentication(authenticationToken);
 
             filterChain.doFilter(request, response);

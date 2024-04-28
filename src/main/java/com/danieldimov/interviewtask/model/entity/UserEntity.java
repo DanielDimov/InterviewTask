@@ -18,13 +18,13 @@ public class UserEntity implements UserDetails {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(length = 200, nullable = false)
+    @Column(unique = true, length = 200, nullable = false)
     private String email;
 
     @Column(length = 64)
     private String password;
 
-    @Column(length = 20)
+    @Column(length = 20, nullable = false)
     private String role;
 
     @Column
@@ -51,9 +51,10 @@ public class UserEntity implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_" + role));
+        return List.of(new SimpleGrantedAuthority(role));
     }
 
+    @Override
     public String getPassword() {
         return password;
     }

@@ -33,18 +33,30 @@ public class UserController {
     public Map<String, String> authenticate(@RequestParam @Email String email, @RequestParam String password) {
         UserEntity authenticatedUser = userService.authenticate(email, password);
 
-        String token = userService.generateToken(authenticatedUser);
+        String accessToken = userService.generateAccessToken(authenticatedUser);
+        String refreshToken = userService.generateRefreshToken(authenticatedUser);
 
-        return Map.of("token", token);
+        return Map.of("access-token", accessToken, "refresh-token", refreshToken);
+    }
+
+    @PostMapping("/refresh")
+    public Map<String, String> refresh(@RequestParam String token) {
+        UserEntity authenticatedUser = userService.authenticate(token);
+
+        String accessToken = userService.generateAccessToken(authenticatedUser);
+        String refreshToken = userService.generateRefreshToken(authenticatedUser);
+
+        return Map.of("access-token", accessToken, "refresh-token", refreshToken);
     }
 
     @GetMapping("/roles")
+    @PreAuthorize("hasAuthority('ADMIN')")
     public List<String> getRoles() {
         return List.of("ADMIN", "MERCHANT", "OTHER");
     }
 
     @GetMapping("/users")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('ADMIN')")
     public List<UserDTO> getUsers() {
         return userService.getAllUsers().stream()
                 .map(UserDTO::new)
@@ -52,10 +64,12 @@ public class UserController {
     }
 
     @GetMapping("/my-user")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MERCHANT')")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'MERCHANT')")
     public UserDTO getMyUser(Authentication auth) {
         var currentUser = userService.getAuthenticationUser(auth);
 
         return new UserDTO(currentUser);
     }
+
+
 }

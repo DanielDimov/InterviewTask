@@ -28,13 +28,15 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
-    private long tokenValidity;
+    private final long accessTokenValidity;
+    private final long refreshTokenValidity;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, @Lazy AuthenticationManager authenticationManager, @Value("${jwt.token-secret}") String tokenSecret, @Value("${jwt.token-validity}") long tokenValidity) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, @Lazy AuthenticationManager authenticationManager, @Value("${jwt.token-secret}") String tokenSecret, @Value("${jwt.access-token-validity}") long accessTokenValidity, @Value("${jwt.refresh-token-validity}") long refreshTokenValidity) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
-        this.tokenValidity = tokenValidity;
+        this.accessTokenValidity = accessTokenValidity;
+        this.refreshTokenValidity = refreshTokenValidity;
         this.algorithm = Algorithm.HMAC256(tokenSecret.getBytes());
         this.verifier = JWT.require(algorithm).build();
     }
@@ -43,13 +45,20 @@ public class UserService {
         return verifier.verify(token);
     }
 
-    public String generateToken(UserEntity user) {
+    public String generateAccessToken(UserEntity user) {
         return JWT.create()
                 .withSubject(user.getUsername())
-                .withExpiresAt(new Date(System.currentTimeMillis() + tokenValidity))
+                .withExpiresAt(new Date(System.currentTimeMillis() + accessTokenValidity))
                 .withClaim("permissions", user.getAuthorities().stream()
                         .map(GrantedAuthority::getAuthority)
                         .collect(Collectors.toList()))
+                .sign(algorithm);
+    }
+
+    public String generateRefreshToken(UserEntity user) {
+        return JWT.create()
+                .withSubject(user.getUsername())
+                .withExpiresAt(new Date(System.currentTimeMillis() + refreshTokenValidity))
                 .sign(algorithm);
     }
 
@@ -86,7 +95,18 @@ public class UserService {
         authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(email, password));
 
         return userRepository.findByEmail(email)
-                .orElseThrow();
+                .orElseThrow(() -> new UsernameNotFoundException("User not found!"));
+    }
+
+    public UserEntity authenticate(String token) {
+        DecodedJWT jwt = verifier.verify(token);
+        String email = jwt.getSubject();
+        var user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found!"));
+
+        if (!user.isActive()) throw new UsernameNotFoundException("User is not active!");
+
+        return user;
     }
 
     public List<UserEntity> getAllUsers() {

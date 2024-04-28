@@ -13,6 +13,7 @@ public class InterviewTaskApplication {
             "/image/**",
             "/assets/**",
             "/api/auth/login",
+            "/api/auth/refresh",
             "/api/auth/register",
     };
 
